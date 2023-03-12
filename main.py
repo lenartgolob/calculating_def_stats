@@ -39,45 +39,39 @@ def get_player_stops(defense_dash_gt15):
         stop1 = row['STL'] + row['BLKP']
         stop2 = calculate_diff_percentage(row['DIFF%'], best_diff, worst_diff)
         players_stops[row['Player']] = (0.3 * stop1 + stop2, row['Team'])
+    return players_stops
 
+def get_teams_total_stops(players_stops):
+    team_total_stops = {}
+    for player, value in players_stops.items():
+        stop = value[0]
+        team = value[1]
+        if team not in team_total_stops:
+            team_total_stops[team] = stop
+        else:
+            team_total_stops[team] += stop
+    return team_total_stops
+
+def get_final_def_rtg(players_stops, team_total_stops):
+    players_teams_coefficient = {}
+    players_final_pdef = {}
+    for player, tuple in players_stops.items():
+        player_stops = tuple[0]
+        team = tuple[1]
+        # Player ranking based on how much he contributes to his team
+        player_team_rating = player_stops / team_total_stops[team]
+        team_pdef_coefficient = team_defenses_coefficient[team][0]
+        player_team_coefficient = player_team_rating * team_pdef_coefficient * 5
+        players_teams_coefficient[player] = player_team_coefficient
+        players_final_pdef[player] = player_stops + player_team_coefficient
+    return players_final_pdef
 
 team_defenses_coefficient = calculate_team_defenses_coefficient()
 defense_dash_gt15 = get_defense_dash_gt15()
+players_stops = get_player_stops(defense_dash_gt15)
+team_total_stops = get_teams_total_stops(players_stops)
+players_final_pdef = get_final_def_rtg(players_stops, team_total_stops)
 
-diff = defense_dash_gt15.sort_values('DIFF%')['DIFF%'].values
-best_diff = diff[0]
-worst_diff = diff[len(diff)-1]
-players_stops = {}
-teams_players = {}
-
-for index, row in defense_dash_gt15.iterrows():
-    team = row['Team']
-    if team not in teams_players:
-        teams_players[team] = [row['Player']]
-    else:
-        teams_players[team].append(row['Player'])
-    stop1 = row['STL'] + row['BLKP']
-    stop2 = calculate_diff_percentage(row['DIFF%'], best_diff, worst_diff)
-    players_stops[row['Player']] = (0.3*stop1 + stop2, row['Team'])
-
-team_total_stops = {}
-for team, players in teams_players.items():
-    stop_sum = 0
-    for player in players:
-        stop_sum += players_stops[player][0]
-    team_total_stops[team] = stop_sum
-
-players_teams_coefficient = {}
-players_final_pdef = {}
-for player, tuple in players_stops.items():
-    player_stops = tuple[0]
-    team = tuple[1]
-    # Player ranking based on how much he contributes to his team
-    player_team_rating = player_stops/team_total_stops[team]
-    team_pdef_coefficient = team_defenses_coefficient[team][0]
-    player_team_coefficient = player_team_rating*team_pdef_coefficient*5
-    players_teams_coefficient[player] = player_team_coefficient
-    players_final_pdef[player] = player_stops + player_team_coefficient
 
 sorted_dict = dict(sorted(players_final_pdef.items(), key=lambda item: item[1]))
 
