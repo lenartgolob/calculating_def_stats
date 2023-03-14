@@ -5,10 +5,13 @@ def calculate_diff_percentage(num, lower_limit, upper_limit):
     #return ((num - lower_limit)/(upper_limit-lower_limit))
     return (upper_limit-num)/(upper_limit-lower_limit)
 
+def calculate_opposite_percentage(num, lower_limit, upper_limit):
+    return ((num - lower_limit)/(upper_limit-lower_limit))
+
 def calculate_team_defenses_coefficient():
     team_defenses = pd.read_csv('../nba.com_scrapper/team_defenses.csv')
 
-    pdef = team_defenses.sort_values('PDEF')['PDEF'].values
+    pdef = team_defenses.sort_values('DEF')['DEF'].values
     min_pdef = pdef[0]
     max_pdef = pdef[len(pdef) - 1]
 
@@ -18,7 +21,8 @@ def calculate_team_defenses_coefficient():
 
     team_defenses_coefficient = {}
     for index, row in team_defenses.iterrows():
-        team_defenses_coefficient[row['Team']] = (calculate_diff_percentage(row['PDEF'], min_pdef, max_pdef),
+        rim_tax = calculate_diff_percentage(row['RDEF'], min_rdef, max_rdef)*0.2
+        team_defenses_coefficient[row['Team']] = (calculate_diff_percentage(row['DEF'], min_pdef, max_pdef)*0.5 + 0.5 - rim_tax,
             calculate_diff_percentage(row['RDEF'], min_rdef, max_rdef))
     return team_defenses_coefficient
 
@@ -38,7 +42,7 @@ def get_player_stops(defense_dash_gt15):
 
     for index, row in defense_dash_gt15.iterrows():
         stop1 = row['STL'] + row['BLKP']
-        stop2 = calculate_diff_percentage(row['DIFF%'], best_diff, worst_diff)
+        stop2 = calculate_diff_percentage(row['DIFF%'], best_diff, worst_diff)*0.5+0.5
         players_stops[row['Player']] = [0.5*stop1 + 3 * stop2, row['Team'], stop1, stop2]
     return players_stops
 
@@ -62,7 +66,7 @@ def get_final_def_rtg(players_stops, team_total_stops):
         # Player ranking based on how much he contributes to his team
         player_team_rating = player_stops / team_total_stops[team]
         team_pdef_coefficient = team_defenses_coefficient[team][0]
-        player_team_coefficient = (player_team_rating + team_pdef_coefficient)*5
+        player_team_coefficient = (player_team_rating + team_pdef_coefficient)*2.5
         players_teams_coefficient[player] = player_team_coefficient
         final_pdef = player_stops + player_team_coefficient
         players_final_pdef[player] = final_pdef
@@ -81,7 +85,7 @@ def get_final_def_rtg_duplicate(players_stops, team_total_stops):
         # Player ranking based on how much he contributes to his team
         player_team_rating = player_stops / team_total_stops[team]
         team_pdef_coefficient = team_defenses_coefficient[team][0]
-        player_team_coefficient = (player_team_rating + team_pdef_coefficient)*5
+        player_team_coefficient = (player_team_rating + team_pdef_coefficient)*2.5
         players_teams_coefficient[player] = player_team_coefficient
         final_pdef = player_team_coefficient + player_stops
         players_final_pdef[player] = final_pdef
