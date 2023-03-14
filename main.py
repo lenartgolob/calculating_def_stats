@@ -21,8 +21,7 @@ def calculate_team_defenses_coefficient():
 
     team_defenses_coefficient = {}
     for index, row in team_defenses.iterrows():
-        rim_tax = calculate_diff_percentage(row['RDEF'], min_rdef, max_rdef)*0.2
-        team_defenses_coefficient[row['Team']] = (calculate_diff_percentage(row['DEF'], min_pdef, max_pdef)*0.5 + 0.5 - rim_tax,
+        team_defenses_coefficient[row['Team']] = (calculate_diff_percentage(row['DEF'], min_pdef, max_pdef)*0.5,
             calculate_diff_percentage(row['RDEF'], min_rdef, max_rdef))
     return team_defenses_coefficient
 
@@ -38,12 +37,15 @@ def get_player_stops(defense_dash_gt15):
     diff = defense_dash_gt15.sort_values('DIFF%')['DIFF%'].values
     best_diff = diff[0]
     worst_diff = diff[len(diff) - 1]
+    dfg = defense_dash_gt15.sort_values('DFG%')['DFG%'].values
+    best_dfg = dfg[0]
+    worst_dfg = dfg[len(diff) - 1]
     players_stops = {}
-
     for index, row in defense_dash_gt15.iterrows():
         stop1 = row['STL'] + row['BLKP']
-        stop2 = calculate_diff_percentage(row['DIFF%'], best_diff, worst_diff)*0.5+0.5
-        players_stops[row['Player']] = [0.5*stop1 + 3 * stop2, row['Team'], stop1, stop2]
+        stop2 = (calculate_diff_percentage(row['DIFF%'], best_diff, worst_diff)*0.5+0.75) * \
+                (calculate_diff_percentage(row['DFG%'], best_dfg, worst_dfg)*0.5+0.75)
+        players_stops[row['Player']] = [0.5*stop1 + 2*stop2, row['Team'], stop1, stop2]
     return players_stops
 
 def get_teams_total_stops(players_stops):
