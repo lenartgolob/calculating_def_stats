@@ -19,8 +19,8 @@ def calculate_team_defenses_coefficient():
 
     team_defenses_coefficient = {}
     for index, row in team_defenses.iterrows():
-        team_defenses_coefficient[row['Team']] = (calculate_diff_percentage(row['DEF'], min_pdef, max_pdef)*0.5,
-            calculate_diff_percentage(row['RDEF'], min_rdef, max_rdef)*0.5)
+        team_defenses_coefficient[row['Team']] = (calculate_diff_percentage(row['DEF'], min_pdef, max_pdef)*0.5+0.75,
+            calculate_diff_percentage(row['RDEF'], min_rdef, max_rdef)*0.5+0.75)
     return team_defenses_coefficient
 
 def get_defense_dash_gt15():
@@ -44,10 +44,10 @@ def get_player_stops(defense_dash_gt15, gt15):
                 (calculate_diff_percentage(row['DFG%'], best_dfg, worst_dfg)*0.5+0.75)
         if gt15:
             stop1 = row['STL'] + row['BLKP'] + row['Charges']
-            players_stops[row['Player']] = [0.5*stop1 + 2*stop2, row['Team'], stop1, stop2]
+            players_stops[row['Player']] = [0.25*stop1 + stop2, row['Team'], stop1, stop2]
         else:
             stop1 = row['BLKR']
-            players_stops[row['Player']] = [stop1 + 2*stop2, row['Team'], stop1, stop2]
+            players_stops[row['Player']] = [0.5*stop1 + stop2, row['Team'], stop1, stop2]
     return players_stops
 
 def get_teams_total_stops(players_stops):
@@ -74,7 +74,7 @@ def get_final_def_rtg(players_stops, team_total_stops, team_defenses_coefficient
             team_pdef_coefficient = team_defenses_coefficient[team][0]
         else:
             team_pdef_coefficient = team_defenses_coefficient[team][1]
-        player_team_coefficient = (player_team_rating + team_pdef_coefficient)*2.5
+        player_team_coefficient = (player_team_rating * team_pdef_coefficient)
         players_teams_coefficient[player] = player_team_coefficient
         final_pdef = player_stops + player_team_coefficient
         players_final_pdef[player] = final_pdef
@@ -97,7 +97,7 @@ def get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_c
             team_pdef_coefficient = team_defenses_coefficient[team][0]
         else:
             team_pdef_coefficient = team_defenses_coefficient[team][1]
-        player_team_coefficient = (player_team_rating + team_pdef_coefficient)*2.5
+        player_team_coefficient = (player_team_rating * team_pdef_coefficient)
         players_teams_coefficient[player] = player_team_coefficient
         final_pdef = player_team_coefficient + player_stops
         players_final_pdef[player] = final_pdef
@@ -141,7 +141,7 @@ for player, value in sorted_dict.items():
 print(t)
 
 defense_dash_lt10 = get_defense_dash_lt10()
-#players_stops = get_player_stops(defense_dash_lt10, False)
+players_stops = get_player_stops(defense_dash_lt10, False)
 team_total_stops = get_teams_total_stops(players_stops)
 players_stops = get_final_def_rtg(players_stops, team_total_stops, team_defenses_coefficient, False)
 players_final_pdef = get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_coefficient, False)
