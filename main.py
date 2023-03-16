@@ -1,5 +1,6 @@
 import pandas as pd
 from prettytable import PrettyTable
+import statistics
 
 def calculate_diff_percentage(num, lower_limit, upper_limit):
     #return ((num - lower_limit)/(upper_limit-lower_limit))
@@ -55,19 +56,20 @@ def get_teams_total_stops(players_stops):
         stop = value[0]
         team = value[1]
         if team not in team_total_stops:
-            team_total_stops[team] = stop
+            team_total_stops[team] = [stop]
         else:
-            team_total_stops[team] += stop
+            team_total_stops[team].append(stop)
     return team_total_stops
 
-def get_final_def_rtg(players_stops, team_total_stops, gt15):
+def get_final_def_rtg(players_stops, team_total_stops, team_defenses_coefficient, gt15):
     players_teams_coefficient = {}
     players_final_pdef = {}
     for player, value in players_stops.items():
         player_stops = value[0]
         team = value[1]
-        # Player ranking based on how much he contributes to his team
-        player_team_rating = player_stops / team_total_stops[team]
+        # Player ranking based on how much he contributes to his team, compare him to average
+        player_team_rating = player_stops / statistics.mean(team_total_stops[team])
+        # player_team_rating = player_stops / team_total_stops[team]
         if gt15:
             team_pdef_coefficient = team_defenses_coefficient[team][0]
         else:
@@ -82,14 +84,15 @@ def get_final_def_rtg(players_stops, team_total_stops, gt15):
     #return players_final_pdef
     return players_stops
 
-def get_final_def_rtg_duplicate(players_stops, team_total_stops, gt15):
+def get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_coefficient, gt15):
     players_teams_coefficient = {}
     players_final_pdef = {}
     for player, value in players_stops.items():
         player_stops = value[0]
         team = value[1]
         # Player ranking based on how much he contributes to his team
-        player_team_rating = player_stops / team_total_stops[team]
+        player_team_rating = player_stops / statistics.mean(team_total_stops[team])
+        #player_team_rating = player_stops / team_total_stops[team]
         if gt15:
             team_pdef_coefficient = team_defenses_coefficient[team][0]
         else:
@@ -116,8 +119,8 @@ defense_dash_gt15 = get_defense_dash_gt15()
 players_stops = get_player_stops(defense_dash_gt15, True)
 team_total_stops = get_teams_total_stops(players_stops)
 #players_final_pdef = get_final_def_rtg(players_stops, team_total_stops)
-players_stops = get_final_def_rtg(players_stops, team_total_stops, True)
-players_final_pdef = get_final_def_rtg_duplicate(players_stops, team_total_stops, True)
+players_stops = get_final_def_rtg(players_stops, team_total_stops, team_defenses_coefficient, True)
+players_final_pdef = get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_coefficient, True)
 
 
 #sorted_dict = dict(sorted(players_final_pdef.items(), key=lambda item: item[1]))
@@ -140,8 +143,8 @@ print(t)
 defense_dash_lt10 = get_defense_dash_lt10()
 #players_stops = get_player_stops(defense_dash_lt10, False)
 team_total_stops = get_teams_total_stops(players_stops)
-players_stops = get_final_def_rtg(players_stops, team_total_stops, False)
-players_final_pdef = get_final_def_rtg_duplicate(players_stops, team_total_stops, False)
+players_stops = get_final_def_rtg(players_stops, team_total_stops, team_defenses_coefficient, False)
+players_final_pdef = get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_coefficient, False)
 
 sorted_dict = dict(sorted(players_final_pdef.items(), key=lambda item: item[1]))
 i = len(sorted_dict)
