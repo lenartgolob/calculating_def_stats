@@ -7,7 +7,7 @@ def calculate_diff_percentage(num, lower_limit, upper_limit):
     return (upper_limit-num)/(upper_limit-lower_limit)
 
 def calculate_team_defenses_coefficient():
-    team_defenses = pd.read_csv('../nba.com_scrapper/team_defenses.csv')
+    team_defenses = pd.read_csv('../nba.com_scrapper/team_defenses_21_22.csv')
 
     pdef = team_defenses.sort_values('DEF')['DEF'].values
     min_pdef = pdef[0]
@@ -24,7 +24,7 @@ def calculate_team_defenses_coefficient():
     return team_defenses_coefficient
 
 def get_defense_dash_gt15():
-    defense_dash_gt15 = pd.read_csv('../nba.com_scrapper/defense_dash_gt15.csv')
+    defense_dash_gt15 = pd.read_csv('../nba.com_scrapper/defense_dash_gt15_21_22.csv')
     # Remove useless datadefense_dash_gt15
     defense_dash_gt15 = defense_dash_gt15[pd.notna(defense_dash_gt15.MP)]
     defense_dash_gt15 = defense_dash_gt15[defense_dash_gt15.MP > 18]
@@ -107,12 +107,46 @@ def get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_c
     return players_final_pdef
 
 def get_defense_dash_lt10():
-    defense_dash_lt10 = pd.read_csv('../nba.com_scrapper/defense_dash_lt10.csv')
+    defense_dash_lt10 = pd.read_csv('../nba.com_scrapper/defense_dash_lt10_22_23.csv')
     # Remove useless datadefense_dash_gt15
     defense_dash_lt10 = defense_dash_lt10[pd.notna(defense_dash_lt10.MP)]
     defense_dash_lt10 = defense_dash_lt10[defense_dash_lt10.MP > 18]
     defense_dash_lt10 = defense_dash_lt10[defense_dash_lt10.GP > 15]
     return defense_dash_lt10
+
+def get_defense_dash_overall():
+    defense_dash_overall = pd.read_csv('../nba.com_scrapper/defense_dash_overall_22_23.csv')
+    # Remove useless datadefense_dash_gt15
+    defense_dash_overall = defense_dash_overall[pd.notna(defense_dash_overall.MP)]
+    defense_dash_overall = defense_dash_overall[defense_dash_overall.MP > 18]
+    defense_dash_overall = defense_dash_overall[defense_dash_overall.GP > 15]
+    return defense_dash_overall
+
+def get_player_stops_gt10(defense_dash_lt10, defense_dash_overall):
+    dd_lt10 = {}
+    dd_gt10 = {}
+    for index, row in defense_dash_lt10.iterrows():
+        dd_lt10[row['Player']] = (row['DFGM'], row['DFGA'])
+
+    for index, row in defense_dash_overall.iterrows():
+        player = row['Player']
+        if player in dd_lt10:
+            dfgm = row['DFGM']-dd_lt10[player][0]
+            dfga = row['DFGA']-dd_lt10[player][1]
+            dfg = (dfgm/dfga)*100
+            dd_gt10[player] = dfg
+
+    key_max = max(dd_gt10.keys(), key=(lambda k: dd_gt10[k]))
+    key_min = min(dd_gt10.keys(), key=(lambda k: dd_gt10[k]))
+    best_dfg = dd_gt10[key_min]
+    worst_dfg = dd_gt10[key_max]
+    players_stops = {}
+
+    for index, row in defense_dash_overall.iterrows():
+        stop1 = row['STL'] + row['BLKP'] + row['Charges']
+        stop2 = calculate_diff_percentage(dd_gt10[row['Player']], best_dfg, worst_dfg)*0.5+0.75
+        players_stops[row['Player']] = [0.25*stop1 + stop2, row['Team'], stop1, stop2]
+    return players_stops
 
 team_defenses_coefficient = calculate_team_defenses_coefficient()
 defense_dash_gt15 = get_defense_dash_gt15()
@@ -123,22 +157,15 @@ players_stops = get_final_def_rtg(players_stops, team_total_stops, team_defenses
 players_final_pdef = get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_coefficient, True)
 
 
-#sorted_dict = dict(sorted(players_final_pdef.items(), key=lambda item: item[1]))
-#i = len(sorted_dict)
-#for key, value in sorted_dict.items():
-#    print(i, key, value)
-#    i -= 1
-
-
 sorted_dict = dict(sorted(players_final_pdef.items(), key=lambda item: item[1]))
 i = len(sorted_dict)
-t = PrettyTable(['Num', 'player', 'team', 'stop1', 'stop2', 'stop', 'player_comparison_teamates', 'team_defense',
-        'player_team_combined', 'final_pdef'])
+t = PrettyTable(['Num', 'player', 'team', 'stop1', 'stop2', 'stop', 'player_contribution', 'team_defense',
+        'player_team', 'final_pdef'])
 for player, value in sorted_dict.items():
     t.add_row([i, player, players_stops[player][1], players_stops[player][2], players_stops[player][3], players_stops[player][0],
           players_stops[player][4], players_stops[player][5], players_stops[player][6], players_stops[player][7]])
     i -= 1
-print(t)
+#print(t)
 
 defense_dash_lt10 = get_defense_dash_lt10()
 players_stops = get_player_stops(defense_dash_lt10, False)
@@ -148,13 +175,28 @@ players_final_pdef = get_final_def_rtg_duplicate(players_stops, team_total_stops
 
 sorted_dict = dict(sorted(players_final_pdef.items(), key=lambda item: item[1]))
 i = len(sorted_dict)
-t = PrettyTable(['Num', 'player', 'team', 'stop1', 'stop2', 'stop', 'player_comparison_teamates', 'team_defense',
-        'player_team_combined', 'final_pdef'])
+t = PrettyTable(['Num', 'player', 'team', 'stop1', 'stop2', 'stop', 'player_contribution', 'team_defense',
+        'player_team', 'final_pdef'])
+for player, value in sorted_dict.items():
+    t.add_row([i, player, players_stops[player][1], players_stops[player][2], players_stops[player][3], players_stops[player][0],
+          players_stops[player][4], players_stops[player][5], players_stops[player][6], players_stops[player][7]])
+    i -= 1
+print(t)
+
+defense_dash_lt10 = get_defense_dash_lt10()
+defense_dash_overall = get_defense_dash_overall()
+players_stops = get_player_stops_gt10(defense_dash_lt10, defense_dash_overall)
+team_total_stops = get_teams_total_stops(players_stops)
+players_stops = get_final_def_rtg(players_stops, team_total_stops, team_defenses_coefficient, False)
+players_final_pdef = get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_coefficient, False)
+
+sorted_dict = dict(sorted(players_final_pdef.items(), key=lambda item: item[1]))
+i = len(sorted_dict)
+t = PrettyTable(['Num', 'player', 'team', 'stop1', 'stop2', 'stop', 'player_contribution', 'team_defense',
+        'player_team', 'final_pdef'])
 for player, value in sorted_dict.items():
     t.add_row([i, player, players_stops[player][1], players_stops[player][2], players_stops[player][3], players_stops[player][0],
           players_stops[player][4], players_stops[player][5], players_stops[player][6], players_stops[player][7]])
     i -= 1
 #print(t)
-
-
 
