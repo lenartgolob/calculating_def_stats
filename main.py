@@ -1,6 +1,8 @@
 import pandas as pd
 from prettytable import PrettyTable
 import statistics
+import mysql.connector
+import json
 
 def calculate_diff_percentage(num, lower_limit, upper_limit):
     #return ((num - lower_limit)/(upper_limit-lower_limit))
@@ -107,7 +109,7 @@ def get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_c
     return players_final_pdef
 
 def get_defense_dash_lt10():
-    defense_dash_lt10 = pd.read_csv('../nba.com_scrapper/defense_dash_lt10_22_23.csv')
+    defense_dash_lt10 = pd.read_csv('../nba.com_scrapper/defense_dash_lt10_13_14.csv')
     # Remove useless datadefense_dash_gt15
     defense_dash_lt10 = defense_dash_lt10[pd.notna(defense_dash_lt10.MP)]
     defense_dash_lt10 = defense_dash_lt10[defense_dash_lt10.MP > 18]
@@ -115,7 +117,7 @@ def get_defense_dash_lt10():
     return defense_dash_lt10
 
 def get_defense_dash_overall():
-    defense_dash_overall = pd.read_csv('../nba.com_scrapper/defense_dash_overall_22_23.csv')
+    defense_dash_overall = pd.read_csv('../nba.com_scrapper/defense_dash_overall_13_14.csv')
     # Remove useless datadefense_dash_gt15
     defense_dash_overall = defense_dash_overall[pd.notna(defense_dash_overall.MP)]
     defense_dash_overall = defense_dash_overall[defense_dash_overall.MP > 18]
@@ -148,6 +150,38 @@ def get_player_stops_gt10(defense_dash_lt10, defense_dash_overall):
         players_stops[row['Player']] = [0.25*stop1 + stop2, row['Team'], stop1, stop2]
     return players_stops
 
+def get_traditional_stats():
+    traditional = pd.read_csv('../nba.com_scrapper/traditional_13_14.csv')
+    return traditional
+
+def insert_in_db(traditional, lt10, gt10):
+    data = json.load(open('db.json'))
+
+    # Connect to DB
+    mydb = mysql.connector.connect(
+        host= "localhost",
+        user= data["user"],
+        password= data["password"],
+        port= data["port"],
+        database= data["database"]
+    )
+
+    mycursor = mydb.cursor()
+
+    for index, row in traditional.iterrows():
+        player = row['Player']
+        if player in lt10:
+            sql = "INSERT INTO player (Player, Team, Age, GP, MIN, PTS, FGM, FGA, FG, 3PM, 3PA, 3P, FTM, FTA, FT, OREB, DREB, REB, AST, TOV, STL, BLK, PF, PlusMinus, Position, PDEF, RDEF, DEF, SeasonYear) " \
+                  "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            val = row.values.tolist()
+            val.append('C')
+            val.append(gt10[player][-1])
+            val.append(lt10[player][-1])
+            val.append(gt10[player][-1]+lt10[player][-1])
+            val.append("13/14")
+            mycursor.execute(sql, val)
+    mydb.commit()
+
 team_defenses_coefficient = calculate_team_defenses_coefficient()
 defense_dash_gt15 = get_defense_dash_gt15()
 players_stops = get_player_stops(defense_dash_gt15, True)
@@ -170,24 +204,7 @@ for player, value in sorted_dict.items():
 defense_dash_lt10 = get_defense_dash_lt10()
 players_stops = get_player_stops(defense_dash_lt10, False)
 team_total_stops = get_teams_total_stops(players_stops)
-players_stops = get_final_def_rtg(players_stops, team_total_stops, team_defenses_coefficient, False)
-players_final_pdef = get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_coefficient, False)
-
-sorted_dict = dict(sorted(players_final_pdef.items(), key=lambda item: item[1]))
-i = len(sorted_dict)
-t = PrettyTable(['Num', 'player', 'team', 'stop1', 'stop2', 'stop', 'player_contribution', 'team_defense',
-        'player_team', 'final_pdef'])
-for player, value in sorted_dict.items():
-    t.add_row([i, player, players_stops[player][1], players_stops[player][2], players_stops[player][3], players_stops[player][0],
-          players_stops[player][4], players_stops[player][5], players_stops[player][6], players_stops[player][7]])
-    i -= 1
-print(t)
-
-defense_dash_lt10 = get_defense_dash_lt10()
-defense_dash_overall = get_defense_dash_overall()
-players_stops = get_player_stops_gt10(defense_dash_lt10, defense_dash_overall)
-team_total_stops = get_teams_total_stops(players_stops)
-players_stops = get_final_def_rtg(players_stops, team_total_stops, team_defenses_coefficient, False)
+players_stops_lt10 = get_final_def_rtg(players_stops, team_total_stops, team_defenses_coefficient, False)
 players_final_pdef = get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_coefficient, False)
 
 sorted_dict = dict(sorted(players_final_pdef.items(), key=lambda item: item[1]))
@@ -199,4 +216,24 @@ for player, value in sorted_dict.items():
           players_stops[player][4], players_stops[player][5], players_stops[player][6], players_stops[player][7]])
     i -= 1
 #print(t)
+
+defense_dash_lt10 = get_defense_dash_lt10()
+defense_dash_overall = get_defense_dash_overall()
+players_stops = get_player_stops_gt10(defense_dash_lt10, defense_dash_overall)
+team_total_stops = get_teams_total_stops(players_stops)
+players_stops_gt10 = get_final_def_rtg(players_stops, team_total_stops, team_defenses_coefficient, False)
+players_final_pdef = get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_coefficient, False)
+
+sorted_dict = dict(sorted(players_final_pdef.items(), key=lambda item: item[1]))
+i = len(sorted_dict)
+t = PrettyTable(['Num', 'player', 'team', 'stop1', 'stop2', 'stop', 'player_contribution', 'team_defense',
+        'player_team', 'final_pdef'])
+for player, value in sorted_dict.items():
+    t.add_row([i, player, players_stops[player][1], players_stops[player][2], players_stops[player][3], players_stops[player][0],
+          players_stops[player][4], players_stops[player][5], players_stops[player][6], players_stops[player][7]])
+    i -= 1
+#print(t)
+
+traditional = get_traditional_stats()
+insert_in_db(traditional, players_stops_lt10, players_stops_gt10)
 
