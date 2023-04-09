@@ -3,13 +3,14 @@ from prettytable import PrettyTable
 import statistics
 import mysql.connector
 import json
+from nba_api.stats.static import players
 
 def calculate_diff_percentage(num, lower_limit, upper_limit):
     #return ((num - lower_limit)/(upper_limit-lower_limit))
     return (upper_limit-num)/(upper_limit-lower_limit)
 
 def calculate_team_defenses_coefficient():
-    team_defenses = pd.read_csv('../nba.com_scrapper/team_defenses_21_22.csv')
+    team_defenses = pd.read_csv('../nba.com_scrapper/team_defenses_22_23.csv')
 
     pdef = team_defenses.sort_values('DEF')['DEF'].values
     min_pdef = pdef[0]
@@ -26,12 +27,20 @@ def calculate_team_defenses_coefficient():
     return team_defenses_coefficient
 
 def get_defense_dash_gt15():
-    defense_dash_gt15 = pd.read_csv('../nba.com_scrapper/defense_dash_gt15_21_22.csv')
+    defense_dash_gt15 = pd.read_csv('../nba.com_scrapper/defense_dash_gt15_22_23.csv')
     # Remove useless datadefense_dash_gt15
     defense_dash_gt15 = defense_dash_gt15[pd.notna(defense_dash_gt15.MP)]
+    defense_dash_gt15_clone = defense_dash_gt15
     defense_dash_gt15 = defense_dash_gt15[defense_dash_gt15.MP > 18]
     defense_dash_gt15 = defense_dash_gt15[defense_dash_gt15.GP > 15]
-    return defense_dash_gt15
+    return (defense_dash_gt15, defense_dash_gt15_clone)
+
+def get_players_positions(defense_dash_gt15):
+    player_positions = {}
+    for index, row in defense_dash_gt15.iterrows():
+        if row['Player'] not in player_positions:
+            player_positions[row['Player']] = row['Position']
+    return player_positions
 
 def get_player_stops(defense_dash_gt15, gt15):
     diff = defense_dash_gt15.sort_values('DIFF%')['DIFF%'].values
@@ -40,6 +49,7 @@ def get_player_stops(defense_dash_gt15, gt15):
     dfg = defense_dash_gt15.sort_values('DFG%')['DFG%'].values
     best_dfg = dfg[0]
     worst_dfg = dfg[len(diff) - 1]
+    player_positions = {}
     players_stops = {}
     for index, row in defense_dash_gt15.iterrows():
         stop2 = (calculate_diff_percentage(row['DIFF%'], best_diff, worst_diff)*0.5+0.75) * \
@@ -50,7 +60,9 @@ def get_player_stops(defense_dash_gt15, gt15):
         else:
             stop1 = row['BLKR']
             players_stops[row['Player']] = [0.5*stop1 + stop2, row['Team'], stop1, stop2]
-    return players_stops
+        if row['Player'] not in player_positions:
+            player_positions[row['Player']] = row['Position']
+    return (players_stops, player_positions)
 
 def get_teams_total_stops(players_stops):
     team_total_stops = {}
@@ -109,7 +121,7 @@ def get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_c
     return players_final_pdef
 
 def get_defense_dash_lt10():
-    defense_dash_lt10 = pd.read_csv('../nba.com_scrapper/defense_dash_lt10_13_14.csv')
+    defense_dash_lt10 = pd.read_csv('../nba.com_scrapper/defense_dash_lt10_22_23.csv')
     # Remove useless datadefense_dash_gt15
     defense_dash_lt10 = defense_dash_lt10[pd.notna(defense_dash_lt10.MP)]
     defense_dash_lt10 = defense_dash_lt10[defense_dash_lt10.MP > 18]
@@ -117,7 +129,7 @@ def get_defense_dash_lt10():
     return defense_dash_lt10
 
 def get_defense_dash_overall():
-    defense_dash_overall = pd.read_csv('../nba.com_scrapper/defense_dash_overall_13_14.csv')
+    defense_dash_overall = pd.read_csv('../nba.com_scrapper/defense_dash_overall_22_23.csv')
     # Remove useless datadefense_dash_gt15
     defense_dash_overall = defense_dash_overall[pd.notna(defense_dash_overall.MP)]
     defense_dash_overall = defense_dash_overall[defense_dash_overall.MP > 18]
@@ -151,10 +163,10 @@ def get_player_stops_gt10(defense_dash_lt10, defense_dash_overall):
     return players_stops
 
 def get_traditional_stats():
-    traditional = pd.read_csv('../nba.com_scrapper/traditional_13_14.csv')
+    traditional = pd.read_csv('../nba.com_scrapper/traditional_22_23.csv')
     return traditional
 
-def insert_in_db(traditional, lt10, gt10):
+def insert_in_db(traditional, lt10, gt10, player_positions):
     data = json.load(open('db.json'))
 
     # Connect to DB
@@ -170,21 +182,30 @@ def insert_in_db(traditional, lt10, gt10):
 
     for index, row in traditional.iterrows():
         player = row['Player']
-        if player in lt10:
-            sql = "INSERT INTO player (Player, Team, Age, GP, MIN, PTS, FGM, FGA, FG, 3PM, 3PA, 3P, FTM, FTA, FT, OREB, DREB, REB, AST, TOV, STL, BLK, PF, PlusMinus, Position, PDEF, RDEF, DEF, SeasonYear) " \
-                  "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        if player in player_positions:
+            sql = "INSERT INTO player (Player, Team, Age, GP, MIN, PTS, FGM, FGA, FG, 3PM, 3PA, 3P, FTM, FTA, FT, OREB, DREB, REB, AST, TOV, STL, BLK, PF, PlusMinus, Position, PDEF, RDEF, DEF, SeasonYear, NbaPlayerId) " \
+                  "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
             val = row.values.tolist()
-            val.append('C')
-            val.append(gt10[player][-1])
-            val.append(lt10[player][-1])
-            val.append(gt10[player][-1]+lt10[player][-1])
-            val.append("13/14")
+            val.append(player_positions[player])
+            if player in lt10:
+                val.append(gt10[player][-1])
+                val.append(lt10[player][-1])
+                val.append(gt10[player][-1]+lt10[player][-1])
+            else:
+                val.append(0)
+                val.append(0)
+                val.append(0)
+            val.append("22/23")
+            player_api = [player_api for player_api in players.get_players() if player_api['full_name'] == player][0]
+            val.append(player_api['id'])
             mycursor.execute(sql, val)
     mydb.commit()
 
 team_defenses_coefficient = calculate_team_defenses_coefficient()
 defense_dash_gt15 = get_defense_dash_gt15()
-players_stops = get_player_stops(defense_dash_gt15, True)
+defense_dash_gt15_clone = defense_dash_gt15[1]
+defense_dash_gt15 = defense_dash_gt15[0]
+players_stops = get_player_stops(defense_dash_gt15, True)[0]
 team_total_stops = get_teams_total_stops(players_stops)
 #players_final_pdef = get_final_def_rtg(players_stops, team_total_stops)
 players_stops = get_final_def_rtg(players_stops, team_total_stops, team_defenses_coefficient, True)
@@ -203,6 +224,8 @@ for player, value in sorted_dict.items():
 
 defense_dash_lt10 = get_defense_dash_lt10()
 players_stops = get_player_stops(defense_dash_lt10, False)
+player_positions = players_stops[1]
+players_stops = players_stops[0]
 team_total_stops = get_teams_total_stops(players_stops)
 players_stops_lt10 = get_final_def_rtg(players_stops, team_total_stops, team_defenses_coefficient, False)
 players_final_pdef = get_final_def_rtg_duplicate(players_stops, team_total_stops, team_defenses_coefficient, False)
@@ -234,6 +257,7 @@ for player, value in sorted_dict.items():
     i -= 1
 #print(t)
 
+player_positions = get_players_positions(defense_dash_gt15_clone)
 traditional = get_traditional_stats()
-insert_in_db(traditional, players_stops_lt10, players_stops_gt10)
+insert_in_db(traditional, players_stops_lt10, players_stops_gt10, player_positions)
 
