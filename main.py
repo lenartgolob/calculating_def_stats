@@ -4,6 +4,8 @@ import statistics
 import mysql.connector
 import json
 from nba_api.stats.static import players
+from nba_api.stats.endpoints import leaguegamefinder
+import numpy as np
 
 def calculate_diff_percentage(num, lower_limit, upper_limit):
     #return ((num - lower_limit)/(upper_limit-lower_limit))
@@ -166,6 +168,31 @@ def get_traditional_stats():
     traditional = pd.read_csv('../nba.com_scrapper/traditional_22_23.csv')
     return traditional
 
+def traded_players(lt10):
+    # Set the season year and team abbreviation
+    season_year = '2022-23'
+    players_teams = {}
+    for player_name in lt10.keys():
+        player_teams = {}
+        gamefinder = leaguegamefinder.LeagueGameFinder(team_id_nullable=None,
+                                                       player_id_nullable=None,
+                                                       season_nullable=season_year,
+                                                       season_type_nullable='Regular Season',
+                                                       league_id_nullable='00',
+                                                       player_or_team_abbreviation='P')
+
+        games = gamefinder.get_data_frames()[0]
+        player_games = games[games.PLAYER_NAME == player_name]
+        arr = player_games['TEAM_ABBREVIATION'].values
+        unique_vals = np.unique(arr)
+        if len(unique_vals) > 1:
+            # Count occurrences of each value in array
+            for val in unique_vals:
+                count = np.count_nonzero(arr == val)
+                player_teams[val] = count
+            players_teams[player_name] = player_teams
+    return players_teams
+
 def insert_in_db(traditional, lt10, gt10, player_positions):
     data = json.load(open('db.json'))
 
@@ -259,5 +286,5 @@ for player, value in sorted_dict.items():
 
 player_positions = get_players_positions(defense_dash_gt15_clone)
 traditional = get_traditional_stats()
-insert_in_db(traditional, players_stops_lt10, players_stops_gt10, player_positions)
-
+#insert_in_db(traditional, players_stops_lt10, players_stops_gt10, player_positions)
+traded_players(players_stops_lt10)
